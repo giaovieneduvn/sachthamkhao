@@ -5,7 +5,11 @@ import { generateOrderCode } from "@/lib/bank";
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
   const slug = String(body.ebookSlug ?? "");
-  const buyerEmail = body.buyerEmail ? String(body.buyerEmail).trim() : null;
+  const buyerEmail = String(body.buyerEmail ?? "").trim();
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(buyerEmail)) {
+    return NextResponse.json({ error: "Email không hợp lệ" }, { status: 400 });
+  }
 
   const ebook = await prisma.ebook.findUnique({ where: { slug } });
   if (!ebook || !ebook.published) {

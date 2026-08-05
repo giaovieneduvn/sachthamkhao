@@ -66,11 +66,15 @@ export default function AdminDashboard() {
   }, []);
 
   async function setOrderStatus(order: OrderRow, status: "paid" | "cancelled") {
-    await fetch(`/api/admin/orders/${order.id}`, {
+    const res = await fetch(`/api/admin/orders/${order.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status }),
     });
+    const data = await res.json();
+    if (data.emailError) {
+      alert(`Đã xác nhận thanh toán nhưng gửi email thất bại: ${data.emailError}`);
+    }
     await loadOrders();
   }
 
