@@ -1,92 +1,53 @@
-# Sách Tham Khảo — website affiliate tự động
+# Sách Tham Khảo — Ebook Store
 
-Next.js + Prisma (Postgres). Đồng bộ sản phẩm từ Shopee và Tiki qua **Accesstrade**
-(mạng affiliate), lưu vào database, hiển thị kèm link affiliate.
-
-> **TikTok Shop chưa được hỗ trợ.** Accesstrade không phân phối dữ liệu sản phẩm
-> TikTok Shop. Cần nghiên cứu/đăng ký riêng qua TikTok Shop Affiliate Center nếu
-> muốn thêm sau này.
+Next.js + Prisma (Postgres) + Supabase Storage. Trang admin cho phép upload file
+PDF/Word/PPT, hệ thống tự trích văn bản làm mô tả, tự tạo ảnh bìa, và đăng lên
+trang công khai để tải xuống.
 
 ## Kiến trúc
 
 ```
-app/api/cron/sync   -> gọi Accesstrade datafeed API, upsert vào bảng Product
-app/api/products     -> API tìm kiếm sản phẩm đã lưu (q, platform, page)
-app/page.tsx         -> trang chủ: form tìm kiếm + lưới sản phẩm (đọc thẳng từ DB)
-lib/accesstrade.ts    -> client gọi Accesstrade API
-lib/prisma.ts          -> Prisma client singleton
-prisma/schema.prisma  -> model Product, SyncLog, SyncCursor
+app/admin/                -> trang quản trị (đăng nhập bằng mật khẩu, upload, bật/tắt/xoá ebook)
+app/api/admin/upload      -> nhận file, trích văn bản, tạo bìa, upload Storage, lưu DB
+app/api/admin/ebooks[/id] -> API list/toggle publish/xoá cho trang admin
+app/                       -> trang chủ danh sách ebook (chỉ hiện published)
+app/ebook/[slug]          -> trang chi tiết 1 ebook
+app/api/download/[slug]   -> tăng downloadCount, tạo signed URL Supabase rồi redirect
+lib/storage.ts             -> upload/lấy signed URL từ Supabase Storage
+lib/extract-text.ts        -> trích đoạn văn bản từ .docx (mammoth) / .pdf (pdf-parse) / .pptx (đọc XML slide)
+lib/cover.ts                -> tự sinh ảnh bìa (nền màu + tên sách) bằng sharp, không cần LibreOffice
+lib/admin-auth.ts           -> session admin bằng cookie HMAC, không cần DB session
+prisma/schema.prisma        -> model Ebook
 ```
 
-Vì Accesstrade **không có tham số tìm theo từ khóa/danh mục thật sự** (đã kiểm
-chứng: `q`, `keyword`, `cate` đều không lọc được), cách tiếp cận là: định kỳ kéo
-toàn bộ datafeed (phân trang, dùng `SyncCursor` để nhớ trang tiếp theo, tự quay
-vòng lại trang 1 khi hết để làm mới dữ liệu) rồi tự tìm kiếm trên dữ liệu đã lưu
-bằng Postgres (`ILIKE`/`contains`).
+**Vì sao không render bìa thật từ file PDF/PPT:** cần LibreOffice hoặc canvas
+native binding, không hợp với môi trường Render free (không có sẵn, build nặng).
+Thay vào đó bìa được tự sinh từ tên sách — admin có thể mở rộng sau này để cho
+upload ảnh bìa riêng nếu muốn đẹp hơn.
 
-**Giới hạn đã biết:** tìm kiếm hiện phân biệt dấu tiếng Việt (gõ "sach" sẽ không
-ra "Sách"). Cải tiến sau: chuẩn hoá bỏ dấu khi lưu + khi tìm (cột phụ
-`name_unaccent`, hoặc bật extension `unaccent` của Postgres).
+**Thanh toán:** hiện chưa tích hợp — mọi ebook đều tải miễn phí
+(`app/api/download/[slug]/route.ts` có ghi chú rõ chỗ cần gắn kiểm tra thanh
+toán sau này, chỉ cần thêm điều kiện trước khi tạo signed URL).
 
 ## Thiết lập local
 
-1. Cài dependencies: `npm install`
+1. `npm install`
 2. Copy `.env.example` → `.env`, điền:
-   - `DATABASE_URL`: chuỗi kết nối Postgres (Render Postgres / Neon / Supabase,
-     hoặc chạy nhanh `npx prisma dev`)
-   - `ACCESSTRADE_API_KEY`: lấy tại
-     https://pub.accesstrade.vn/publisher_profile/personal_info
-   - `CRON_SECRET`: một chuỗi ngẫu nhiên bất kỳ, dùng để bảo vệ endpoint sync
-3. Chạy migration: `npx prisma migrate dev`
-4. Chạy dev server: `npm run dev`
-5. Đồng bộ dữ liệu lần đầu:
-   ```bash
-   curl -X POST "http://localhost:3000/api/cron/sync?pages=5" \
-     -H "x-cron-secret: <CRON_SECRET>"
-   ```
-   `pages` = số trang (100 sản phẩm/trang) kéo về **mỗi sàn** trong một lần gọi.
-   Gọi lại nhiều lần (hoặc đặt cron) để kéo hết ~13k sản phẩm Shopee /
-   ~53k sản phẩm Tiki hiện có trong tài khoản.
+   - `DATABASE_URL`: chuỗi Postgres (Supabase **Session pooler**, xem ghi chú trong file)
+   - `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`: Project Settings → API (lấy **service_role**, không phải anon key) — dùng để ghi file lên Storage, khác với `DATABASE_URL`
+   - `ADMIN_PASSWORD`: mật khẩu tự chọn để vào `/admin`
+3. `npx prisma migrate deploy`
+4. `npm run dev`
+5. Vào `http://localhost:3000/admin`, đăng nhập, upload thử 1 file
 
-## Database: Supabase thay vì Render Postgres
-
-Dùng Supabase hoàn toàn được (Render free plan không có Postgres free lâu dài,
-nên đây là lựa chọn hợp lý). Đã test thực tế và hoạt động tốt với **direct
-connection**:
-
-```
-DATABASE_URL="postgresql://postgres:<password>@db.<project-ref>.supabase.co:5432/postgres"
-```
-
-Lấy tại **Project Settings → Database → Connection string** (tab "URI", mục
-"Direct connection"). Nếu môi trường deploy không hỗ trợ IPv6 (direct connection
-của Supabase chạy IPv6 mặc định, dù trong quá trình dev ở đây vẫn kết nối được)
-và gặp lỗi timeout, đổi sang **"Session pooler"** (IPv4, dạng
-`postgresql://postgres.<project-ref>:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres`)
-— tuyệt đối không dùng "Transaction pooler" vì nó không giữ session, khiến
-`prisma migrate deploy` lỗi advisory lock.
-
-Chứng chỉ TLS của Supabase là self-signed nên `lib/prisma.ts` đã cấu hình
-`ssl: { rejectUnauthorized: false }` khi tạo adapter — cần giữ nguyên dòng này.
+Bucket Storage (`ebook-files` riêng tư, `ebook-covers` công khai) được tự tạo ở
+lần upload đầu tiên (`ensureBuckets()` trong `lib/storage.ts`), không cần tạo tay.
 
 ## Deploy lên Render
 
-1. Push repo lên GitHub (`giaovieneduvn/sachthamkhao`).
-2. Trên Render, tạo:
-   - **Web Service**, connect với repo GitHub này.
-     - Build command: `npm install && npx prisma generate && npm run build`
-     - Start command: `npm run start`
-     - Env vars: `DATABASE_URL`, `ACCESSTRADE_API_KEY`, `CRON_SECRET`
-   - **Cron Job**, cùng repo, chạy định kỳ (vd mỗi giờ):
-     ```bash
-     curl -X POST "https://<your-app>.onrender.com/api/cron/sync?pages=10" \
-       -H "x-cron-secret: $CRON_SECRET"
-     ```
-3. Sau khi deploy, chạy migration trên DB production một lần:
-   `npx prisma migrate deploy` (với `DATABASE_URL` trỏ vào Render Postgres).
+Build/Start command giữ nguyên như trước:
+- Build: `npm install && npx prisma generate && npm run build`
+- Start: `npm run start`
+- Env vars: `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ADMIN_PASSWORD`
 
-## Lưu ý pháp lý
-
-Trang chủ đã có dòng công khai đây là liên kết tiếp thị liên kết (affiliate
-disclosure). Không xoá dòng này — đây là yêu cầu tối thiểu khi kinh doanh
-affiliate tại Việt Nam.
+Không cần Cron Job / GitHub Actions nữa (không còn đồng bộ dữ liệu bên ngoài).

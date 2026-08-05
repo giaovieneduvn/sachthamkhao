@@ -1,8 +1,6 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider = "prisma-client"
   output   = "../app/generated/prisma"
@@ -12,44 +10,26 @@ datasource db {
   provider = "postgresql"
 }
 
-enum Platform {
-  shopee
-  tiki
-  tiktok
+enum FileType {
+  pdf
+  docx
+  pptx
 }
 
-model Product {
-  id          String   @id @default(cuid())
-  platform    Platform
-  productId   String // id/sku from the affiliate network, unique per platform
-  name        String
-  description String?  @db.Text
-  price       Decimal? @db.Decimal(12, 2)
-  image       String?
-  shopName    String?
-  originalUrl String
-  affLink     String
-  updatedAt   DateTime @updatedAt
-  createdAt   DateTime @default(now())
+model Ebook {
+  id            String   @id @default(cuid())
+  slug          String   @unique
+  title         String
+  description   String?  @db.Text
+  fileType      FileType
+  fileKey       String // path inside the Supabase Storage bucket
+  fileSizeBytes Int
+  coverUrl      String?
+  price         Decimal  @default(0) @db.Decimal(12, 2) // 0 = free
+  published     Boolean  @default(true)
+  downloadCount Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  @@unique([platform, productId])
-  @@index([platform])
-  @@index([name])
-}
-
-model SyncCursor {
-  platform Platform @id
-  nextPage Int      @default(1)
-  updatedAt DateTime @updatedAt
-}
-
-model SyncLog {
-  id          String   @id @default(cuid())
-  platform    Platform
-  startedAt   DateTime @default(now())
-  finishedAt  DateTime?
-  fetched     Int      @default(0)
-  upserted    Int      @default(0)
-  status      String   @default("running") // running | success | failed
-  errorMsg    String?  @db.Text
+  @@index([published])
 }
