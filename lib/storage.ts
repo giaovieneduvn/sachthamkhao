@@ -44,12 +44,12 @@ export async function uploadCoverImage(key: string, buffer: Buffer, contentType:
   return supabase().storage.from(COVERS_BUCKET).getPublicUrl(key).data.publicUrl;
 }
 
-export async function getSignedDownloadUrl(key: string, expiresInSeconds = 60) {
-  const { data, error } = await supabase()
-    .storage.from(FILES_BUCKET)
-    .createSignedUrl(key, expiresInSeconds);
+// Fetches the file bytes server-side so the app can stream them back under its
+// own domain — the client never sees a Supabase URL (signed or not) to copy/share.
+export async function downloadEbookFile(key: string): Promise<Buffer> {
+  const { data, error } = await supabase().storage.from(FILES_BUCKET).download(key);
   if (error) throw error;
-  return data.signedUrl;
+  return Buffer.from(await data.arrayBuffer());
 }
 
 export async function deleteEbookFile(key: string) {

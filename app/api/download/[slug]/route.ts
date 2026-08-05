@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getSignedDownloadUrl } from "@/lib/storage";
+import { downloadEbookFile } from "@/lib/storage";
+import { CONTENT_TYPE } from "@/lib/file-types";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -22,6 +23,13 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ slu
     data: { downloadCount: { increment: 1 } },
   });
 
-  const url = await getSignedDownloadUrl(ebook.fileKey, 60);
-  return NextResponse.redirect(url);
+  const buffer = await downloadEbookFile(ebook.fileKey);
+  return new NextResponse(new Uint8Array(buffer), {
+    headers: {
+      "Content-Type": CONTENT_TYPE[ebook.fileType],
+      "Content-Disposition": `attachment; filename="${ebook.fileKey}"`,
+      "Content-Length": String(buffer.byteLength),
+      "Cache-Control": "no-store",
+    },
+  });
 }

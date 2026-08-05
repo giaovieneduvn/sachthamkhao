@@ -5,21 +5,9 @@ import { ensureBuckets, uploadCoverImage, uploadEbookFile } from "@/lib/storage"
 import { extractExcerpt } from "@/lib/extract-text";
 import { generateCover } from "@/lib/cover";
 import { randomSuffix, slugify } from "@/lib/slug";
-import type { FileType } from "@/app/generated/prisma/client";
+import { EXT_TO_TYPE, CONTENT_TYPE } from "@/lib/file-types";
 
 const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
-
-const EXT_TO_TYPE: Record<string, FileType> = {
-  pdf: "pdf",
-  docx: "docx",
-  pptx: "pptx",
-};
-
-const CONTENT_TYPE: Record<FileType, string> = {
-  pdf: "application/pdf",
-  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-};
 
 export async function POST(req: NextRequest) {
   if (!(await isAuthenticated())) {
