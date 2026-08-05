@@ -30,32 +30,34 @@ async function syncPlatform(platform: "shopee" | "tiki", pagesToFetch: number) {
       const result = await fetchDatafeedPage(domain, page, PAGE_SIZE);
       fetched += result.data.length;
 
-      for (const p of result.data) {
-        await prisma.product.upsert({
-          where: { platform_productId: { platform, productId: p.product_id } },
-          create: {
-            platform,
-            productId: p.product_id,
-            name: p.name,
-            description: p.desc || null,
-            price: p.price ?? null,
-            image: p.image || null,
-            shopName: p.shop_name || null,
-            originalUrl: p.url,
-            affLink: p.aff_link,
-          },
-          update: {
-            name: p.name,
-            description: p.desc || null,
-            price: p.price ?? null,
-            image: p.image || null,
-            shopName: p.shop_name || null,
-            originalUrl: p.url,
-            affLink: p.aff_link,
-          },
-        });
-        upserted++;
-      }
+      await Promise.all(
+        result.data.map((p) =>
+          prisma.product.upsert({
+            where: { platform_productId: { platform, productId: p.product_id } },
+            create: {
+              platform,
+              productId: p.product_id,
+              name: p.name,
+              description: p.desc || null,
+              price: p.price ?? null,
+              image: p.image || null,
+              shopName: p.shop_name || null,
+              originalUrl: p.url,
+              affLink: p.aff_link,
+            },
+            update: {
+              name: p.name,
+              description: p.desc || null,
+              price: p.price ?? null,
+              image: p.image || null,
+              shopName: p.shop_name || null,
+              originalUrl: p.url,
+              affLink: p.aff_link,
+            },
+          }),
+        ),
+      );
+      upserted += result.data.length;
 
       const totalPages = Math.ceil(result.total / PAGE_SIZE);
       page = page >= totalPages ? 1 : page + 1; // wrap around to refresh from the top
