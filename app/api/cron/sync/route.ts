@@ -96,8 +96,11 @@ export async function POST(req: NextRequest) {
   const pagesParam = req.nextUrl.searchParams.get("pages");
   const pagesToFetch = pagesParam ? parseInt(pagesParam, 10) : DEFAULT_PAGES_PER_RUN;
 
+  // Shopee sync paused: Accesstrade's Shopee deep links currently 404 (their
+  // sub_id template placeholders aren't being substituted). Re-add "shopee"
+  // here once that's confirmed fixed. Tiki is unaffected.
   const results = [];
-  for (const platform of ["shopee", "tiki"] as const) {
+  for (const platform of ["tiki"] as const) {
     results.push(await syncPlatform(platform, pagesToFetch));
   }
 

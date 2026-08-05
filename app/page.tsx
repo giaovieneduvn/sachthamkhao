@@ -7,6 +7,11 @@ const PLATFORM_LABEL: Record<Platform, string> = {
   tiktok: "TikTok Shop",
 };
 
+// Shopee affiliate links are currently broken on Accesstrade's side (deep link
+// redirects end up at click.accesstrade.vn/404.html). Hidden from the storefront
+// until that's fixed; data stays in the DB so this is a one-line revert.
+const DISABLED_PLATFORMS: Platform[] = ["shopee"];
+
 function formatPrice(price: unknown) {
   const n = Number(price);
   if (!n) return "";
@@ -20,10 +25,15 @@ export default async function Home({
 }) {
   const { q = "", platform } = await searchParams;
 
+  const validPlatform =
+    platform &&
+    ["shopee", "tiki", "tiktok"].includes(platform) &&
+    !DISABLED_PLATFORMS.includes(platform as Platform)
+      ? (platform as Platform)
+      : undefined;
+
   const where = {
-    ...(platform && ["shopee", "tiki", "tiktok"].includes(platform)
-      ? { platform: platform as Platform }
-      : {}),
+    platform: validPlatform ? validPlatform : { notIn: DISABLED_PLATFORMS },
     ...(q ? { name: { contains: q, mode: "insensitive" as const } } : {}),
   };
 
@@ -54,7 +64,6 @@ export default async function Home({
             className="rounded-md border border-zinc-300 px-4 py-2 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
           >
             <option value="">Tất cả sàn</option>
-            <option value="shopee">Shopee</option>
             <option value="tiki">Tiki</option>
           </select>
           <button
