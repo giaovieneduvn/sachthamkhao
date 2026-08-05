@@ -25,9 +25,16 @@ native binding, không hợp với môi trường Render free (không có sẵn,
 Thay vào đó bìa được tự sinh từ tên sách — admin có thể mở rộng sau này để cho
 upload ảnh bìa riêng nếu muốn đẹp hơn.
 
-**Thanh toán:** hiện chưa tích hợp — mọi ebook đều tải miễn phí
-(`app/api/download/[slug]/route.ts` có ghi chú rõ chỗ cần gắn kiểm tra thanh
-toán sau này, chỉ cần thêm điều kiện trước khi tạo signed URL).
+**Thanh toán:** chuyển khoản ngân hàng qua VietQR, xác nhận thủ công (không
+dùng cổng thanh toán/API ngân hàng). Ebook giá 0 vẫn tải trực tiếp; ebook có
+giá thì phải tạo đơn (`POST /api/orders`) → trang `/order/[code]` hiện QR +
+thông tin chuyển khoản → admin bấm "Xác nhận đã nhận tiền" trên `/admin` sau
+khi tự kiểm tra sao kê → link tải mới mở ra (`app/api/orders/[code]/download`).
+`app/api/download/[slug]` (đường tải trực tiếp cho ebook miễn phí) chặn hẳn
+nếu ebook có giá > 0, tránh vòng qua thanh toán bằng cách đoán URL.
+
+`lib/bank.ts` chứa số tài khoản/tên chủ khoản Vietcombank (hardcode, không phải
+secret) và hàm dựng URL ảnh VietQR qua `img.vietqr.io`.
 
 ## Thiết lập local
 

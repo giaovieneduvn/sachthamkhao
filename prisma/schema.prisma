@@ -31,5 +31,27 @@ model Ebook {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
+  orders Order[]
+
   @@index([published])
+}
+
+enum OrderStatus {
+  pending
+  paid
+  cancelled
+}
+
+model Order {
+  id         String      @id @default(cuid())
+  code       String      @unique // shown as the bank transfer note (VietQR addInfo)
+  ebookId    String
+  ebook      Ebook       @relation(fields: [ebookId], references: [id])
+  amount     Decimal     @db.Decimal(12, 2)
+  buyerEmail String?
+  status     OrderStatus @default(pending)
+  createdAt  DateTime    @default(now())
+  paidAt     DateTime?
+
+  @@index([status])
 }

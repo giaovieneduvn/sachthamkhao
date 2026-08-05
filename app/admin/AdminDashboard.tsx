@@ -15,12 +15,29 @@ interface EbookRow {
   downloadCount: number;
 }
 
+interface OrderRow {
+  id: string;
+  code: string;
+  amount: string;
+  buyerEmail: string | null;
+  status: "pending" | "paid" | "cancelled";
+  createdAt: string;
+  ebook: { title: string };
+}
+
 function formatSize(bytes: number) {
   return (bytes / (1024 * 1024)).toFixed(1) + " MB";
 }
 
+const ORDER_STATUS_LABEL: Record<OrderRow["status"], string> = {
+  pending: "Chờ thanh toán",
+  paid: "Đã thanh toán",
+  cancelled: "Đã huỷ",
+};
+
 export default function AdminDashboard() {
   const [ebooks, setEbooks] = useState<EbookRow[]>([]);
+  const [orders, setOrders] = useState<OrderRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
@@ -33,9 +50,25 @@ export default function AdminDashboard() {
     setLoading(false);
   }
 
+  async function loadOrders() {
+    const res = await fetch("/api/admin/orders");
+    const data = await res.json();
+    setOrders(data.orders ?? []);
+  }
+
   useEffect(() => {
     loadEbooks();
+    loadOrders();
   }, []);
+
+  async function setOrderStatus(order: OrderRow, status: "paid" | "cancelled") {
+    await fetch(`/api/admin/orders/${order.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    });
+    await loadOrders();
+  }
 
   async function handleUpload(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -127,6 +160,57 @@ export default function AdminDashboard() {
           {uploading ? "Đang tải lên..." : "Đăng"}
         </button>
       </form>
+
+      <h2 className="mb-3 font-medium">
+        Đơn hàng ({orders.filter((o) => o.status === "pending").length} đang chờ)
+      </h2>
+      <div className="mb-10 space-y-2">
+        {orders.map((o) => (
+          <div
+            key={o.id}
+            className="flex items-center gap-4 rounded-lg border border-zinc-200 p-3 text-sm dark:border-zinc-800"
+          >
+            <div className="min-w-0 flex-1">
+              <p className="font-medium">
+                {o.code} · {o.ebook.title}
+              </p>
+              <p className="text-xs text-zinc-500">
+                {Number(o.amount).toLocaleString("vi-VN")} đ ·{" "}
+                {new Date(o.createdAt).toLocaleString("vi-VN")}
+                {o.buyerEmail ? ` · ${o.buyerEmail}` : ""}
+              </p>
+            </div>
+            <span
+              className={`rounded-md px-2 py-1 text-xs ${
+                o.status === "paid"
+                  ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+                  : o.status === "cancelled"
+                    ? "bg-zinc-100 text-zinc-500 dark:bg-zinc-800"
+                    : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+              }`}
+            >
+              {ORDER_STATUS_LABEL[o.status]}
+            </span>
+            {o.status === "pending" && (
+              <>
+                <button
+                  onClick={() => setOrderStatus(o, "paid")}
+                  className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs text-white"
+                >
+                  Xác nhận đã nhận tiền
+                </button>
+                <button
+                  onClick={() => setOrderStatus(o, "cancelled")}
+                  className="rounded-md bg-zinc-100 px-3 py-1.5 text-xs text-zinc-600 dark:bg-zinc-800"
+                >
+                  Huỷ
+                </button>
+              </>
+            )}
+          </div>
+        ))}
+        {orders.length === 0 && <p className="text-zinc-500">Chưa có đơn hàng nào.</p>}
+      </div>
 
       <h2 className="mb-3 font-medium">Danh sách ({ebooks.length})</h2>
       {loading ? (

@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import BuyButton from "./BuyButton";
 
 function formatPrice(price: unknown) {
   const n = Number(price);
@@ -42,12 +43,16 @@ export default async function EbookDetailPage({
                 {ebook.description}
               </p>
             )}
-            <a
-              href={`/api/download/${ebook.slug}`}
-              className="mt-6 inline-block rounded-md bg-emerald-600 px-6 py-3 font-medium text-white hover:bg-emerald-700"
-            >
-              Tải xuống
-            </a>
+            {Number(ebook.price) > 0 ? (
+              <BuyButton slug={ebook.slug} />
+            ) : (
+              <a
+                href={`/api/download/${ebook.slug}`}
+                className="mt-6 inline-block rounded-md bg-emerald-600 px-6 py-3 font-medium text-white hover:bg-emerald-700"
+              >
+                Tải xuống
+              </a>
+            )}
             <p className="mt-2 text-xs text-zinc-400">{ebook.downloadCount} lượt tải</p>
           </div>
         </div>

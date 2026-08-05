@@ -10,8 +10,13 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ slu
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  // Payment isn't wired up yet — every ebook is currently free to download.
-  // Once checkout exists, gate this on a verified purchase before signing the URL.
+  if (Number(ebook.price) > 0) {
+    return NextResponse.json(
+      { error: "Ebook này cần mua trước khi tải. Vào trang chi tiết để thanh toán." },
+      { status: 402 },
+    );
+  }
+
   await prisma.ebook.update({
     where: { id: ebook.id },
     data: { downloadCount: { increment: 1 } },
