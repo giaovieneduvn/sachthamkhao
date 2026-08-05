@@ -22,6 +22,7 @@ interface OrderRow {
   buyerEmail: string | null;
   status: "pending" | "paid" | "cancelled";
   createdAt: string;
+  downloadedAt: string | null;
   ebook: { title: string };
 }
 
@@ -41,6 +42,9 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState({ title: "", description: "", price: "0" });
+  const [savingEdit, setSavingEdit] = useState(false);
 
   async function loadEbooks() {
     setLoading(true);
@@ -66,6 +70,15 @@ export default function AdminDashboard() {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status }),
+    });
+    await loadOrders();
+  }
+
+  async function allowRedownload(order: OrderRow) {
+    await fetch(`/api/admin/orders/${order.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ allowRedownload: true }),
     });
     await loadOrders();
   }
@@ -108,6 +121,30 @@ export default function AdminDashboard() {
     if (!confirm(`Xoá "${ebook.title}"? Không thể hoàn tác.`)) return;
     await fetch(`/api/admin/ebooks/${ebook.id}`, { method: "DELETE" });
     await loadEbooks();
+  }
+
+  function startEdit(ebook: EbookRow) {
+    setEditingId(ebook.id);
+    setEditDraft({
+      title: ebook.title,
+      description: ebook.description ?? "",
+      price: ebook.price,
+    });
+  }
+
+  async function saveEdit(id: string) {
+    setSavingEdit(true);
+    try {
+      await fetch(`/api/admin/ebooks/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editDraft),
+      });
+      setEditingId(null);
+      await loadEbooks();
+    } finally {
+      setSavingEdit(false);
+    }
   }
 
   return (
@@ -178,6 +215,9 @@ export default function AdminDashboard() {
                 {Number(o.amount).toLocaleString("vi-VN")} đ ·{" "}
                 {new Date(o.createdAt).toLocaleString("vi-VN")}
                 {o.buyerEmail ? ` · ${o.buyerEmail}` : ""}
+                {o.status === "paid" && (
+                  <> · {o.downloadedAt ? "Đã tải" : "Chưa tải"}</>
+                )}
               </p>
             </div>
             <span
@@ -207,6 +247,14 @@ export default function AdminDashboard() {
                 </button>
               </>
             )}
+            {o.status === "paid" && o.downloadedAt && (
+              <button
+                onClick={() => allowRedownload(o)}
+                className="rounded-md bg-zinc-100 px-3 py-1.5 text-xs text-zinc-600 dark:bg-zinc-800"
+              >
+                Cho phép tải lại
+              </button>
+            )}
           </div>
         ))}
         {orders.length === 0 && <p className="text-zinc-500">Chưa có đơn hàng nào.</p>}
@@ -217,46 +265,97 @@ export default function AdminDashboard() {
         <p className="text-zinc-500">Đang tải...</p>
       ) : (
         <div className="space-y-3">
-          {ebooks.map((e) => (
-            <div
-              key={e.id}
-              className="flex items-center gap-4 rounded-lg border border-zinc-200 p-3 dark:border-zinc-800"
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={e.coverUrl ?? ""} alt={e.title} className="h-20 w-16 rounded object-cover" />
-              <div className="min-w-0 flex-1">
-                <p className="truncate font-medium">{e.title}</p>
-                <p className="text-xs text-zinc-500">
-                  {e.fileType.toUpperCase()} · {formatSize(e.fileSizeBytes)} ·{" "}
-                  {Number(e.price) > 0 ? `${Number(e.price).toLocaleString("vi-VN")} đ` : "Miễn phí"} ·{" "}
-                  {e.downloadCount} lượt tải
-                </p>
-                <a
-                  href={`/ebook/${e.slug}`}
-                  target="_blank"
-                  className="text-xs text-blue-600 underline"
-                >
-                  Xem trang công khai
-                </a>
+          {ebooks.map((e) =>
+            editingId === e.id ? (
+              <div
+                key={e.id}
+                className="space-y-2 rounded-lg border border-zinc-300 p-3 dark:border-zinc-700"
+              >
+                <input
+                  type="text"
+                  value={editDraft.title}
+                  onChange={(ev) => setEditDraft({ ...editDraft, title: ev.target.value })}
+                  placeholder="Tên sách"
+                  className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+                />
+                <textarea
+                  value={editDraft.description}
+                  onChange={(ev) => setEditDraft({ ...editDraft, description: ev.target.value })}
+                  placeholder="Mô tả"
+                  rows={3}
+                  className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+                />
+                <input
+                  type="number"
+                  value={editDraft.price}
+                  onChange={(ev) => setEditDraft({ ...editDraft, price: ev.target.value })}
+                  min={0}
+                  placeholder="Giá"
+                  className="w-40 rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => saveEdit(e.id)}
+                    disabled={savingEdit}
+                    className="rounded-md bg-zinc-900 px-4 py-1.5 text-xs text-white disabled:opacity-50 dark:bg-zinc-50 dark:text-zinc-900"
+                  >
+                    {savingEdit ? "Đang lưu..." : "Lưu"}
+                  </button>
+                  <button
+                    onClick={() => setEditingId(null)}
+                    className="rounded-md bg-zinc-100 px-4 py-1.5 text-xs text-zinc-600 dark:bg-zinc-800"
+                  >
+                    Huỷ
+                  </button>
+                </div>
               </div>
-              <button
-                onClick={() => togglePublished(e)}
-                className={`rounded-md px-3 py-1.5 text-xs ${
-                  e.published
-                    ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
-                    : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
-                }`}
+            ) : (
+              <div
+                key={e.id}
+                className="flex items-center gap-4 rounded-lg border border-zinc-200 p-3 dark:border-zinc-800"
               >
-                {e.published ? "Đang hiện" : "Đang ẩn"}
-              </button>
-              <button
-                onClick={() => remove(e)}
-                className="rounded-md bg-red-50 px-3 py-1.5 text-xs text-red-600 dark:bg-red-900/20"
-              >
-                Xoá
-              </button>
-            </div>
-          ))}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={e.coverUrl ?? ""} alt={e.title} className="h-20 w-16 rounded object-cover" />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-medium">{e.title}</p>
+                  <p className="text-xs text-zinc-500">
+                    {e.fileType.toUpperCase()} · {formatSize(e.fileSizeBytes)} ·{" "}
+                    {Number(e.price) > 0 ? `${Number(e.price).toLocaleString("vi-VN")} đ` : "Miễn phí"} ·{" "}
+                    {e.downloadCount} lượt tải
+                  </p>
+                  <a
+                    href={`/ebook/${e.slug}`}
+                    target="_blank"
+                    className="text-xs text-blue-600 underline"
+                  >
+                    Xem trang công khai
+                  </a>
+                </div>
+                <button
+                  onClick={() => startEdit(e)}
+                  className="rounded-md bg-zinc-100 px-3 py-1.5 text-xs text-zinc-600 dark:bg-zinc-800"
+                >
+                  Sửa
+                </button>
+                <button
+                  onClick={() => togglePublished(e)}
+                  className={`rounded-md px-3 py-1.5 text-xs ${
+                    e.published
+                      ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+                      : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
+                  }`}
+                >
+                  {e.published ? "Đang hiện" : "Đang ẩn"}
+                </button>
+                <button
+                  onClick={() => remove(e)}
+                  className="rounded-md bg-red-50 px-3 py-1.5 text-xs text-red-600 dark:bg-red-900/20"
+                >
+                  Xoá
+                </button>
+              </div>
+            ),
+          )}
           {ebooks.length === 0 && <p className="text-zinc-500">Chưa có ebook nào.</p>}
         </div>
       )}

@@ -9,6 +9,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const { id } = await params;
   const body = await req.json();
+
+  if (body.allowRedownload) {
+    const order = await prisma.order.update({ where: { id }, data: { downloadedAt: null } });
+    return NextResponse.json({ ok: true, order });
+  }
+
   const status = body.status;
   if (!["pending", "paid", "cancelled"].includes(status)) {
     return NextResponse.json({ error: "Trạng thái không hợp lệ" }, { status: 400 });

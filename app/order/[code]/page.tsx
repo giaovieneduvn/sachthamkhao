@@ -20,10 +20,17 @@ export default async function OrderPage({ params }: { params: Promise<{ code: st
         </h1>
         <p className="mt-1 text-zinc-600 dark:text-zinc-300">{order.ebook.title}</p>
 
-        {order.status === "paid" ? (
+        {order.status === "paid" && order.downloadedAt ? (
+          <div className="mt-6 rounded-lg border border-zinc-200 bg-zinc-50 p-5 dark:border-zinc-800 dark:bg-zinc-900">
+            <p className="font-medium text-zinc-700 dark:text-zinc-300">
+              Link tải của đơn này đã được dùng (mỗi đơn chỉ tải được 1 lần để tránh chia sẻ
+              link). Nếu cần tải lại, liên hệ người bán.
+            </p>
+          </div>
+        ) : order.status === "paid" ? (
           <div className="mt-6 rounded-lg border border-emerald-200 bg-emerald-50 p-5 dark:border-emerald-900 dark:bg-emerald-950">
             <p className="font-medium text-emerald-700 dark:text-emerald-400">
-              Đã nhận thanh toán — bạn có thể tải sách ngay.
+              Đã nhận thanh toán — bạn có thể tải sách ngay. Lưu ý: link chỉ tải được 1 lần.
             </p>
             <a
               href={`/api/orders/${order.code}/download`}

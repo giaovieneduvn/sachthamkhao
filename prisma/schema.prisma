@@ -49,9 +49,10 @@ model Order {
   ebook      Ebook       @relation(fields: [ebookId], references: [id])
   amount     Decimal     @db.Decimal(12, 2)
   buyerEmail String?
-  status     OrderStatus @default(pending)
-  createdAt  DateTime    @default(now())
-  paidAt     DateTime?
+  status       OrderStatus @default(pending)
+  createdAt    DateTime    @default(now())
+  paidAt       DateTime?
+  downloadedAt DateTime? // set on first successful download; blocks reuse of the order link
 
   @@index([status])
 }
